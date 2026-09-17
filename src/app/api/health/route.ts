@@ -32,9 +32,10 @@ export async function GET() {
       },
     });
   } catch (err: any) {
-    console.error('Database connection error:', err?.message || err);
+    const errorDetail = err?.cause?.message || err?.cause || err?.message || String(err);
+    console.error('Database connection error:', errorDetail);
     return Response.json(
-      { ok: false, database: 'disconnected', error: err?.message || String(err) },
+      { ok: false, database: 'disconnected', error: String(errorDetail) },
       { status: 500 }
     );
   }
