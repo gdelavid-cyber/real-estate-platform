@@ -27,8 +27,12 @@ const globalForDb = globalThis as typeof globalThis & {
 };
 
 function createPool() {
+  const sanitizedUrl = isLocal
+    ? databaseUrl
+    : databaseUrl.replace(/([?&])sslmode=[^&]+(&|$)/, '$1').replace(/[?&]$/, '');
+
   return new Pool({
-    connectionString: databaseUrl,
+    connectionString: sanitizedUrl,
     max: isLocal ? 10 : 1,
     idleTimeoutMillis: 20_000,
     connectionTimeoutMillis: 15_000,
