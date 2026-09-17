@@ -31,9 +31,10 @@ export async function GET() {
         ),
       },
     });
-  } catch {
+  } catch (err: any) {
+    console.error('Database connection error:', err?.message || err);
     return Response.json(
-      { ok: false, database: 'disconnected' },
+      { ok: false, database: 'disconnected', error: err?.message || String(err) },
       { status: 500 }
     );
   }
