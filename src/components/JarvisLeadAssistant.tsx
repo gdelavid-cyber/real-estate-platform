@@ -77,7 +77,17 @@ interface BridgeFrame {
   servers?: Array<string | { name?: string }>;
 }
 
-const BRIDGE_URL = process.env.NEXT_PUBLIC_JARVIS_BRIDGE_URL || '';
+const getEffectiveBridgeUrl = () => {
+  if (process.env.NEXT_PUBLIC_JARVIS_BRIDGE_URL) {
+    return process.env.NEXT_PUBLIC_JARVIS_BRIDGE_URL;
+  }
+  if (typeof window !== 'undefined') {
+    if (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') {
+      return 'ws://localhost:8787';
+    }
+  }
+  return '';
+};
 
 export default function JarvisLeadAssistant({
   leads,
@@ -91,15 +101,15 @@ export default function JarvisLeadAssistant({
   const [expanded, setExpanded] = useState(false);
   const [minimized, setMinimized] = useState(false);
   const [position, setPosition] = useState<{ x: number; y: number } | null>(null);
-  const [phase, setPhase] = useState<Phase>(BRIDGE_URL ? 'connecting' : 'offline');
+  const [phase, setPhase] = useState<Phase>('ready');
+  const [isLiveBridge, setIsLiveBridge] = useState(false);
+  const [bridgeUrl, setBridgeUrl] = useState('');
   const [input, setInput] = useState('');
   const [messages, setMessages] = useState<Message[]>([
     {
       id: 'welcome',
       role: 'assistant',
-      text: BRIDGE_URL
-        ? 'Lead Assistant is connecting to the Jarvis bridge.'
-        : 'Lead Assistant needs a Jarvis bridge connection. Add NEXT_PUBLIC_JARVIS_BRIDGE_URL after starting the adewaskar/jarvis bridge.',
+      text: 'Jarvis Lead Assistant online. Ready to analyze leads, structure deals, and coordinate your pipeline.',
     },
   ]);
   const [servers, setServers] = useState<string[]>([]);
@@ -192,8 +202,11 @@ export default function JarvisLeadAssistant({
   };
 
   const connect = () => {
-    if (!BRIDGE_URL || typeof window === 'undefined') {
-      setPhase('offline');
+    const url = getEffectiveBridgeUrl();
+    setBridgeUrl(url);
+    if (!url || typeof window === 'undefined') {
+      setPhase('ready');
+      setIsLiveBridge(false);
       return;
     }
     if (
@@ -203,73 +216,86 @@ export default function JarvisLeadAssistant({
       return;
 
     setPhase('connecting');
-    const socket = new WebSocket(BRIDGE_URL);
-    socketRef.current = socket;
+    try {
+      const socket = new WebSocket(url);
+      socketRef.current = socket;
 
-    socket.onopen = () => setPhase('ready');
-    socket.onmessage = (event) => {
-      let frame: BridgeFrame;
-      try {
-        frame = JSON.parse(String(event.data));
-      } catch {
-        return;
-      }
-
-      if (frame.type === 'ready') {
-        setServers(
-          (frame.servers || [])
-            .map((server) => (typeof server === 'string' ? server : server.name || ''))
-            .filter(Boolean)
-        );
+      socket.onopen = () => {
         setPhase('ready');
-      }
+        setIsLiveBridge(true);
+      };
+      socket.onmessage = (event) => {
+        let frame: BridgeFrame;
+        try {
+          frame = JSON.parse(String(event.data));
+        } catch {
+          return;
+        }
 
-      const pending = pendingRef.current;
-      if (!pending || (frame.ask && frame.ask !== pending.id)) return;
+        if (frame.type === 'ready') {
+          setServers(
+            (frame.servers || [])
+              .map((server) => (typeof server === 'string' ? server : server.name || ''))
+              .filter(Boolean)
+          );
+          setPhase('ready');
+          setIsLiveBridge(true);
+        }
 
-      if (frame.type === 'text') {
-        pending.text += frame.delta || '';
-        setPhase('thinking');
-        setMessages((items) => {
-          const without = items.filter((item) => item.id !== pending.id);
-          return [
-            ...without,
-            { id: pending.id, role: 'assistant', text: pending.text, tools: pending.tools },
-          ];
-        });
-      } else if (frame.type === 'tool' && frame.name) {
-        pending.tools.push(frame.name);
-        setActiveTools([...pending.tools]);
-      } else if (frame.type === 'done') {
-        const finalText = frame.text || pending.text || 'Task completed without text output.';
-        setMessages((items) => [
-          ...items.filter((item) => item.id !== pending.id),
-          { id: pending.id, role: 'assistant', text: finalText, tools: pending.tools },
-        ]);
-        pendingRef.current = null;
-        setActiveTools([]);
+        const pending = pendingRef.current;
+        if (!pending || (frame.ask && frame.ask !== pending.id)) return;
+
+        if (frame.type === 'text') {
+          pending.text += frame.delta || '';
+          setPhase('thinking');
+          setMessages((items) => {
+            const without = items.filter((item) => item.id !== pending.id);
+            return [
+              ...without,
+              { id: pending.id, role: 'assistant', text: pending.text, tools: pending.tools },
+            ];
+          });
+        } else if (frame.type === 'tool' && frame.name) {
+          pending.tools.push(frame.name);
+          setActiveTools([...pending.tools]);
+        } else if (frame.type === 'done') {
+          const finalText = frame.text || pending.text || 'Task completed.';
+          setMessages((items) => [
+            ...items.filter((item) => item.id !== pending.id),
+            { id: pending.id, role: 'assistant', text: finalText, tools: pending.tools },
+          ]);
+          pendingRef.current = null;
+          setActiveTools([]);
+          setPhase('ready');
+          speak(finalText);
+        } else if (frame.type === 'error') {
+          setMessages((items) => [
+            ...items,
+            {
+              id: crypto.randomUUID(),
+              role: 'system',
+              text: frame.message || 'Jarvis bridge returned an error.',
+            },
+          ]);
+          pendingRef.current = null;
+          setActiveTools([]);
+          setPhase('ready');
+        }
+      };
+      socket.onclose = () => {
+        socketRef.current = null;
+        setIsLiveBridge(false);
         setPhase('ready');
-        speak(finalText);
-      } else if (frame.type === 'error') {
-        setMessages((items) => [
-          ...items,
-          {
-            id: crypto.randomUUID(),
-            role: 'system',
-            text: frame.message || 'The Jarvis bridge returned an error.',
-          },
-        ]);
-        pendingRef.current = null;
-        setActiveTools([]);
-        setPhase('error');
-      }
-    };
-    socket.onclose = () => {
-      socketRef.current = null;
-      setPhase('offline');
-      reconnectRef.current = window.setTimeout(connect, 3000);
-    };
-    socket.onerror = () => setPhase('error');
+        reconnectRef.current = window.setTimeout(connect, 4000);
+      };
+      socket.onerror = () => {
+        setIsLiveBridge(false);
+        setPhase('ready');
+      };
+    } catch {
+      setIsLiveBridge(false);
+      setPhase('ready');
+    }
   };
 
   useEffect(() => {
@@ -287,44 +313,75 @@ export default function JarvisLeadAssistant({
     messagesRef.current?.scrollTo({ top: messagesRef.current.scrollHeight, behavior: 'smooth' });
   }, [messages]);
 
-  const ask = (raw: string) => {
+  const ask = async (raw: string) => {
     const text = raw.trim();
     if (!text) return;
     const socket = socketRef.current;
+    const userMsgId = crypto.randomUUID();
     setMessages((items) => [
       ...items,
-      { id: crypto.randomUUID(), role: 'user', text },
+      { id: userMsgId, role: 'user', text },
     ]);
     setInput('');
 
-    if (!socket || socket.readyState !== WebSocket.OPEN) {
-      setMessages((items) => [
-        ...items,
-        {
-          id: crypto.randomUUID(),
-          role: 'system',
-          text: 'Jarvis bridge is disconnected. Start the bridge and verify NEXT_PUBLIC_JARVIS_BRIDGE_URL and JARVIS_ALLOWED_ORIGINS.',
-        },
-      ]);
-      connect();
+    // When WebSocket bridge is connected, send through the Claude Agent SDK bridge
+    if (socket && socket.readyState === WebSocket.OPEN) {
+      const id = crypto.randomUUID();
+      pendingRef.current = { id, text: '', tools: [] };
+      setPhase('thinking');
+      socket.send(
+        JSON.stringify({
+          type: 'ask',
+          id,
+          text: [
+            'You are the lead real estate assistant for Melissa Hatfield at John L. Scott Real Estate.',
+            'Use the following current application context. Treat absent data as unknown.',
+            crmContext,
+            `Agent request: ${text}`,
+          ].join('\n\n'),
+        })
+      );
       return;
     }
 
-    const id = crypto.randomUUID();
-    pendingRef.current = { id, text: '', tools: [] };
+    // Direct in-app engine fallback via /api/assistant
+    const pendingId = crypto.randomUUID();
     setPhase('thinking');
-    socket.send(
-      JSON.stringify({
-        type: 'ask',
-        id,
-        text: [
-          'You are the lead real estate assistant for Melissa Hatfield at John L. Scott Real Estate.',
-          'Use the following current application context. Treat absent data as unknown.',
-          crmContext,
-          `Agent request: ${text}`,
-        ].join('\n\n'),
-      })
-    );
+    try {
+      let parsedContext = {};
+      try {
+        parsedContext = JSON.parse(crmContext);
+      } catch {}
+
+      const response = await fetch('/api/assistant', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          message: text,
+          crmContext: parsedContext,
+        }),
+      });
+      const data = await response.json();
+      const reply = data.reply || data.error || 'Assistant processed request with no text output.';
+      setMessages((items) => [
+        ...items,
+        { id: pendingId, role: data.reply ? 'assistant' : 'system', text: reply },
+      ]);
+      if (data.reply) {
+        speak(data.reply);
+      }
+    } catch (err: any) {
+      setMessages((items) => [
+        ...items,
+        {
+          id: pendingId,
+          role: 'system',
+          text: `Assistant communication error: ${err?.message || err}`,
+        },
+      ]);
+    } finally {
+      setPhase('ready');
+    }
   };
 
   useEffect(() => {
@@ -619,7 +676,11 @@ export default function JarvisLeadAssistant({
         <div className="flex items-center gap-2 min-w-0 text-[10px] text-slate-400">
           <Activity className="w-3.5 h-3.5 text-cyan-300" />
           <span className="truncate">
-            {activeTools.length ? `Using ${activeTools.join(', ')}` : BRIDGE_URL ? 'Bridge configured' : 'Bridge URL missing'}
+            {activeTools.length
+              ? `Using ${activeTools.join(', ')}`
+              : isLiveBridge
+              ? `Jarvis Bridge Connected (${servers.length} MCP tools)`
+              : 'Direct Real Estate AI Active · In-App Engine'}
           </span>
         </div>
         <label className="flex items-center gap-2 text-[10px] text-slate-300 cursor-pointer whitespace-nowrap">
@@ -628,14 +689,22 @@ export default function JarvisLeadAssistant({
         </label>
       </div>
 
-      {!BRIDGE_URL && (
-        <div className="m-3 p-3 rounded-2xl bg-amber-500/10 border border-amber-500/30 text-xs text-amber-100">
-          <div className="flex items-center gap-2 font-semibold">
-            <Link2 className="w-4 h-4" /> Bridge connection required
+      {!isLiveBridge && (
+        <div className="mx-3 mt-3 p-2.5 rounded-2xl bg-cyan-950/40 border border-cyan-500/20 text-xs text-cyan-100 flex items-center justify-between gap-2">
+          <div className="flex items-center gap-2 min-w-0">
+            <Sparkles className="w-4 h-4 text-cyan-400 flex-shrink-0" />
+            <span className="text-[11px] text-cyan-200/90 truncate">
+              Operating in Direct Engine Mode. Run <code className="text-cyan-300 bg-white/10 px-1 py-0.5 rounded font-mono">npm run jarvis</code> for Claude Agent SDK bridge.
+            </span>
           </div>
-          <p className="mt-1 text-amber-100/70">
-            Start the repository bridge, authorize this site in JARVIS_ALLOWED_ORIGINS, and set NEXT_PUBLIC_JARVIS_BRIDGE_URL to its secure wss:// address.
-          </p>
+          {bridgeUrl && (
+            <button
+              onClick={connect}
+              className="text-[10px] uppercase font-semibold px-2 py-0.5 rounded bg-cyan-500/20 text-cyan-300 hover:bg-cyan-500/30 whitespace-nowrap cursor-pointer"
+            >
+              Retry Link
+            </button>
+          )}
         </div>
       )}
 
