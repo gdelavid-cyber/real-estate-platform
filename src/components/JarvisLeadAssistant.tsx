@@ -185,17 +185,63 @@ export default function JarvisLeadAssistant({
     [priorityLeads, properties, clients]
   );
 
+/**
+ * Score installed system voices according to the original Jarvis persona:
+ * A British male butler (Daniel, George, Oliver, Arthur, Ryan) with low, level pitch.
+ * Exact port from jarvis-main/src/lib/tts.ts
+ */
+function scoreJarvisVoice(v: SpeechSynthesisVoice): number {
+  const n = v.name.toLowerCase();
+  let s = 0;
+
+  // The British male, and the closest thing to the character available
+  if (n.startsWith('daniel')) s += 100;
+  else if (n.includes('google uk english male')) s += 95;
+  else if (/\b(george|oliver|arthur|ryan|charles|jamie|malcolm)\b/.test(n)) s += 90;
+  else if (/\b(reed|rocko|eddy)\b/.test(n)) s += 40;
+
+  // Higher-quality Natural / Online / Enhanced variants
+  if (n.includes('online (natural)') || n.includes('natural')) s += 40;
+  if (n.includes('premium')) s += 30;
+  else if (n.includes('enhanced')) s += 20;
+
+  // British English preferred for Jarvis character
+  if (/en[-_]gb/i.test(v.lang)) s += 35;
+  else if (/^en/i.test(v.lang)) s += 5;
+
+  // Voices that clearly aren't a butler
+  if (/grandma|grandpa|bubbles|jester|bells|boing|whisper|zarvox|superstar|trinoids|wobble|bahh|organ|cellos|bad news|good news/.test(n)) {
+    s -= 200;
+  }
+  // Filter out female-presenting voices across English locales
+  if (/\b(flo|sandy|shelley|kate|serena|fiona|moira|karen|tessa|samantha|zoe|allison|ava|susan|victoria|zira|hazel|heera|catherina|jenny)\b/.test(n)) {
+    s -= 150;
+  }
+
+  return s;
+}
+
+function pickJarvisVoice(voices: SpeechSynthesisVoice[]): SpeechSynthesisVoice | null {
+  if (!voices.length) return null;
+  const englishVoices = voices.filter((v) => /^en/i.test(v.lang));
+  const scored = englishVoices
+    .map((v) => ({ v, s: scoreJarvisVoice(v) }))
+    .sort((a, b) => b.s - a.s);
+
+  return scored[0]?.v || voices.find((v) => /en[-_]gb/i.test(v.lang)) || englishVoices[0] || null;
+}
+
   const speak = (text: string) => {
     if (!voiceEnabled || !('speechSynthesis' in window)) return;
     window.speechSynthesis.cancel();
     const utterance = new SpeechSynthesisUtterance(text.replace(/[*#_`]/g, ''));
-    utterance.rate = 0.96;
-    utterance.pitch = 0.98;
+    // Exact Jarvis cadence: measured British delivery, low and level pitch
+    utterance.rate = 0.94;
+    utterance.pitch = 0.92;
+
     const voices = window.speechSynthesis.getVoices();
-    utterance.voice =
-      voices.find((voice) =>
-        /natural|premium|enhanced|samantha|google us english/i.test(voice.name)
-      ) || voices.find((voice) => voice.lang.startsWith('en')) || null;
+    utterance.voice = pickJarvisVoice(voices);
+
     utterance.onstart = () => setPhase('speaking');
     utterance.onend = () => setPhase('ready');
     window.speechSynthesis.speak(utterance);
