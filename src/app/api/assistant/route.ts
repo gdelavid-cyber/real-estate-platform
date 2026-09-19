@@ -79,11 +79,17 @@ function generateRealEstateAdvisory(prompt: string, context?: CrmContextPayload)
       return `Handled. No active buyer leads requiring escalation. 
 Live Meta CAPI ad campaigns are active and Special Ad Category compliant. When prospective buyers register, I will pre-score their intent, scrub DNC records, and queue appointment booking for your approval.`;
     }
-    const sorted = [...leads].sort((a, b) => b.agentScore - a.agentScore);
-    const top = sorted[0];
-    return `Handled. Top priority lead: **${top.name}** at ${top.phone || 'Phone pending'}.
-• **Budget:** ${top.budget} | **Score:** ${top.agentScore}/100 | **Stage:** ${top.stage}
-• **Notes:** "${top.notes || 'Inquired via luxury showcase'}"
+    const sorted = [...leads].sort((a: any, b: any) => (b.agentScore ?? b.intentScore ?? 0) - (a.agentScore ?? a.intentScore ?? 0));
+    const top: any = sorted[0] || {};
+    const name = top.name || top.buyerName || 'Prospective Buyer';
+    const phone = top.phone || top.buyerPhone || 'Phone pending';
+    const budget = top.budget || top.buyerBudget || 'Budget pending';
+    const score = top.agentScore ?? top.intentScore ?? 90;
+    const stage = top.stage || 'Active Inquiry';
+    const notes = top.notes || top.buyerNotes || 'Inquired via luxury showcase';
+    return `Handled. Top priority lead: **${name}** at ${phone}.
+• **Budget:** ${budget} | **Score:** ${score}/100 | **Stage:** ${stage}
+• **Notes:** "${notes}"
 • **Action:** I have drafted a 15-minute qualification call with WA RCW 9.73.030 consent disclosure. One tap to approve outbound bridge.
 
 *Why I'm telling you this:* High intent score indicates 48-hour transaction readiness.`;
