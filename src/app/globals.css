@@ -1127,3 +1127,67 @@ textarea::placeholder {
 ::-webkit-scrollbar-thumb:hover {
   background: var(--taupe);
 }
+
+/* ================================================================
+   JARVIS HOLOGRAPHIC HUD & ARC REACTOR SYSTEM
+   ================================================================ */
+.jarvis-hud-wrap {
+  --interface: #00e5ff;
+  --accent: #00e5ff;
+  font-family: var(--font-body), system-ui, sans-serif;
+  color-scheme: dark;
+}
+
+.jarvis-corner {
+  position: absolute;
+  width: 28px;
+  height: 28px;
+  border: 1.5px solid rgba(0, 229, 255, 0.45);
+  pointer-events: none;
+  z-index: 10;
+}
+.jarvis-corner-tl { top: 12px; left: 12px; border-right: 0; border-bottom: 0; }
+.jarvis-corner-tr { top: 12px; right: 12px; border-left: 0; border-bottom: 0; }
+.jarvis-corner-bl { bottom: 12px; left: 12px; border-right: 0; border-top: 0; }
+.jarvis-corner-br { bottom: 12px; right: 12px; border-left: 0; border-top: 0; }
+
+.jarvis-signal-meter {
+  width: 4px;
+  height: 52px;
+  background: rgba(0, 229, 255, 0.15);
+  display: flex;
+  align-items: flex-end;
+  border-radius: 2px;
+  overflow: hidden;
+}
+
+.jarvis-signal-fill {
+  width: 100%;
+  background: #00e5ff;
+  box-shadow: 0 0 10px #00e5ff;
+  transition: height 100ms ease-out;
+}
+
+@keyframes jarvis-glow-pulse {
+  0%, 100% {
+    box-shadow: 0 0 15px rgba(0, 229, 255, 0.25), inset 0 0 15px rgba(0, 229, 255, 0.1);
+  }
+  50% {
+    box-shadow: 0 0 28px rgba(0, 229, 255, 0.5), inset 0 0 25px rgba(0, 229, 255, 0.2);
+  }
+}
+
+.jarvis-glow-box {
+  animation: jarvis-glow-pulse 3s ease-in-out infinite;
+}
+
+.jarvis-scanlines {
+  background: repeating-linear-gradient(
+    0deg,
+    rgba(0, 229, 255, 0.02) 0px,
+    rgba(0, 229, 255, 0.02) 1px,
+    transparent 1px,
+    transparent 3px
+  );
+}
+
