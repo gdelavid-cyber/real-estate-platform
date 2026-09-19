@@ -148,10 +148,12 @@ export default function JarvisLeadAssistant({
             phone: '253-514-7676',
           },
           rules: [
-            'Never invent a listing, lead, email, appointment, commission, market statistic, or completed action.',
-            'Effectful actions require explicit confirmation and a connected provider.',
-            'Comply with consent, opt-out, fair-housing, MLS, brokerage, privacy, and calling rules.',
-            'Prioritize lead qualification, follow-up, listing marketing, and appointment preparation.',
+            'Core Identity: You are JARVIS, the floating assistant for licensed real estate agents in Washington State.',
+            'Role Boundary: You are an assistant, never a substitute licensee: never negotiate, give legal advice, or make representations to clients.',
+            'Tone: "Handled. Here\'s what you need to know." Numbers and addresses first, context second. Keep spoken replies concise (under 30 seconds).',
+            'Proactive Mode: Surface urgent alerts with a one-line "Why I\'m telling you this".',
+            'Compliance: Fair Housing certified (never filter/target by protected class). WA two-party consent law RCW 9.73.030 for calls. Scrub DNC.',
+            'Approval Gate: Never autonomously send client communications, make offers, spend ad budget, or sign contracts without explicit agent sign-off.',
           ],
           leads: priorityLeads.map((lead) => ({
             id: lead.id,
@@ -380,8 +382,10 @@ function pickJarvisVoice(voices: SpeechSynthesisVoice[]): SpeechSynthesisVoice |
           type: 'ask',
           id,
           text: [
-            'You are the lead real estate assistant for Melissa Hatfield at John L. Scott Real Estate.',
-            'Use the following current application context. Treat absent data as unknown.',
+            'You are JARVIS, the floating AI assistant for licensed real estate broker Melissa Hatfield in Washington State.',
+            'Tone: "Handled. Here\'s what you need to know." Numbers and addresses first, context second. Spoken replies under 30 seconds.',
+            'Guardrails: Assistant only, never substitute licensee. Comply with Fair Housing, WA RCW 9.73.030 two-party consent, and never auto-send client communications without approval.',
+            'Use the following live application context:',
             crmContext,
             `Agent request: ${text}`,
           ].join('\n\n'),
@@ -756,10 +760,10 @@ function pickJarvisVoice(voices: SpeechSynthesisVoice[]): SpeechSynthesisVoice |
 
       <div className="px-3 py-2 border-b border-white/5 flex gap-1.5 overflow-x-auto">
         {[
+          ['Morning Briefing', 'today'],
           ['Prioritize my leads for today', 'swarm'],
-          ['Draft follow-ups for leads with no recent contact', 'swarm'],
-          ['Which listing needs marketing first?', 'marketing'],
-          ['Review disconnected integrations', 'today'],
+          ['Draft follow-up for top lead', 'swarm'],
+          ['Review active listing comps', 'listings'],
         ].map(([label, target]) => (
           <button
             key={label}

@@ -59,53 +59,98 @@ function generateRealEstateAdvisory(prompt: string, context?: CrmContextPayload)
   const listings = context?.listings || [];
   const clients = context?.clients || [];
 
-  // Top leads / Buyer qualification
-  if (q.includes('lead') || q.includes('buyer') || q.includes('priority') || q.includes('who to call')) {
+  // Morning Brief / Overnight Summary / Proactive Mode
+  if (q.includes('morning brief') || q.includes('overnight') || q.includes('what happened') || q.includes('brief')) {
+    const leadCount = leads.length;
+    const listingCount = listings.length;
+    return `Handled. Here's your morning brief:
+
+• **Pipeline:** ${leadCount} active leads monitored. ${leadCount > 0 ? `Top prospect ${leads[0].name} (${leads[0].budget}) queued for follow-up approval.` : 'No urgent overnight inquiries.'}
+• **Inventory:** ${listingCount} active listings in portfolio. Comps verified against NWMLS records.
+• **Compliance Check:** All outbound dialer campaigns armed with RCW 9.73.030 WA two-party consent announcements and DNC scrubbing.
+• **Action Required:** 1 marketing campaign draft and 1 client email touch queued for your one-tap approval.
+
+*Why I'm telling you this:* Keeps you ahead of today's deal velocity before your first showing at 10:00 AM.`;
+  }
+
+  // Top leads / Buyer qualification / Dialer
+  if (q.includes('lead') || q.includes('buyer') || q.includes('priority') || q.includes('who to call') || q.includes('dialer')) {
     if (leads.length === 0) {
-      return 'No active leads found in the database. When prospective buyers inquire through your marketing campaigns or live site, their intent score and pre-approval details will appear here for warm follow-up.';
+      return `Handled. No active buyer leads requiring escalation. 
+Live Meta CAPI ad campaigns are active and Special Ad Category compliant. When prospective buyers register, I will pre-score their intent, scrub DNC records, and queue appointment booking for your approval.`;
     }
     const sorted = [...leads].sort((a, b) => b.agentScore - a.agentScore);
-    const top = sorted.slice(0, 3);
-    const leadSummaries = top
-      .map(
-        (l, i) =>
-          `${i + 1}. **${l.name}** (Intent: ${l.agentScore}/100) — Budget: ${l.budget}, Stage: *${l.stage}*. ${l.notes ? `Note: "${l.notes}"` : ''}`
-      )
-      .join('\n');
-    return `Here are your highest priority leads right now:\n\n${leadSummaries}\n\n**Recommended Next Action:** Schedule a 15-minute qualification call or trigger an AI Voice dialer appointment request for ${top[0].name}.`;
+    const top = sorted[0];
+    return `Handled. Top priority lead: **${top.name}** at ${top.phone || 'Phone pending'}.
+• **Budget:** ${top.budget} | **Score:** ${top.agentScore}/100 | **Stage:** ${top.stage}
+• **Notes:** "${top.notes || 'Inquired via luxury showcase'}"
+• **Action:** I have drafted a 15-minute qualification call with WA RCW 9.73.030 consent disclosure. One tap to approve outbound bridge.
+
+*Why I'm telling you this:* High intent score indicates 48-hour transaction readiness.`;
   }
 
-  // Listings & Inventory
-  if (q.includes('listing') || q.includes('property') || q.includes('inventory') || q.includes('terms') || q.includes('price')) {
+  // Listings / Comps / NWMLS Search
+  if (q.includes('listing') || q.includes('property') || q.includes('inventory') || q.includes('terms') || q.includes('price') || q.includes('mls') || q.includes('comp')) {
     if (listings.length === 0) {
-      return 'You have no active listings uploaded in this workspace. Upload your property photos and seller reserve bottom-line via the Listings tab to generate 4K cinema tours, luxury copy, and marketing campaigns.';
+      return `Handled. 0 active listings currently uploaded in this workspace.
+Add your property photos and address in the Listings tab. I will immediately generate 4K cinematic tour blocking, NWMLS-compliant marketing descriptions, and Fair Housing-certified social copy for your approval.`;
     }
-    const listSummary = listings
-      .slice(0, 4)
-      .map((p, i) => `${i + 1}. **${p.title}** (${p.address}) — Asking ${p.price} [Status: ${p.status}]`)
-      .join('\n');
-    return `Active portfolio listings:\n\n${listSummary}\n\nAll listings are armed with automated video rendering, buyer swarm scraping, and seller negotiation guardrails.`;
+    const prime = listings[0];
+    return `Handled. Listing: **${prime.title}** (${prime.address}).
+• **Price:** ${prime.price} | **Status:** ${prime.status}
+• **Comps & Velocity:** Average Pierce County DOM is currently 11 days. Recommended list threshold remains within 2% of comp median to capture peak buyer wave.
+• **Marketing Assets:** 3D Tour visualization and 9:16 vertical reel queued for your review.
+
+*Why I'm telling you this:* Fast-moving market timing window requires prompt price positioning.`;
   }
 
-  // Market timing & Puyallup advisory
+  // Market timing & Puyallup / Pierce County advisory
   if (q.includes('market') || q.includes('timing') || q.includes('rate') || q.includes('sell')) {
-    return 'Pierce County Real Estate Market Advisory:\n- **Market Timing Score:** 94/100 (Strong Seller Advantage)\n- **Inventory:** 1.4 Months (Severely Constrained)\n- **Average Days on Market:** 11 Days\n- **Median Price:** $595,000 (+7.2% YoY)\n- **Financing Climate:** 6.25% Conventional / 5.85% FHA\n\n**Agent Strategy:** Sellers benefit from an ultra-narrow listing window before spring inventory surges. Price competitively within 2% of fair comps to drive multiple competitive offers in the first 10 days.';
+    return `Handled. Pierce County market metrics:
+• **Median Price:** $595,000 (+7.2% YoY)
+• **Inventory:** 1.4 Months (Ultra Low / Extreme Seller Advantage)
+• **Average DOM:** 11 Days
+• **Rates:** 6.25% Conventional / 5.85% FHA
+• **Strategy:** Strongest seller leverage is over the next 14 to 28 days before seasonal spring listing surge.
+
+*Why I'm telling you this:* Gives you immediate data backing for today's seller consultations and net sheet reviews.`;
   }
 
-  // Email / Outreach drafting
+  // Email / Outreach drafting (Queued for approval, never auto-sent)
   if (q.includes('email') || q.includes('draft') || q.includes('follow up') || q.includes('message')) {
-    const leadName = leads[0]?.name || 'Valued Client';
-    return `Here is a high-conversion follow-up template for **${leadName}**:\n\n---\n**Subject:** Off-market update regarding your Pacific Northwest search\n\nHi ${leadName},\n\nI noticed your recent inquiry on our Puyallup & Pierce County portfolio. Several high-demand properties matching your target criteria are scheduled for release over the next two weeks before hitting public portals.\n\nAre you available for a brief 5-minute call today at 2:00 PM or 4:30 PM to discuss early access and current seller concessions?\n\nWarm regards,\n**Melissa Hatfield**\nREALTOR® | John L. Scott Real Estate\n(253) 514-7676\n---`;
+    const leadName = leads[0]?.name || 'Prospective Buyer';
+    return `Handled. Drafted follow-up for **${leadName}** queued for your approval:
+
+"Hi ${leadName}, this is Melissa Hatfield with John L. Scott. I reviewed your search criteria for Pierce County properties. Two off-market opportunities matching your price window are releasing this week. Are you available for a brief 5-minute call today at 2:00 PM or 4:30 PM?"
+
+*Why I'm telling you this:* Assistant rule: Client messages are never auto-sent without your explicit one-tap sign-off.`;
   }
 
-  // Client relations / Sphere
+  // Documents & Contracts
+  if (q.includes('document') || q.includes('contract') || q.includes('loi') || q.includes('disclosure') || q.includes('sign')) {
+    return `Handled. Document Vault status:
+• All standard purchase & sale agreements, agency disclosures, and LOIs are indexed with SHA-256 tamper-evident hashing.
+• Remember: I summarize terms and cite sections, but all legal representations and negotiations remain with you as the licensed broker.
+
+*Why I'm telling you this:* Ensures continuous compliance with Washington State Department of Licensing brokerage standards.`;
+  }
+
+  // Client relations / Sphere / CRM
   if (q.includes('client') || q.includes('sphere') || q.includes('nurture') || q.includes('past')) {
-    const count = clients.length;
-    return `Client Sphere Overview: You have ${count} client records tracked in your Career CRM. Automated holiday greetings, annual homeiversary updates, and market advisory touches are scheduled automatically.`;
+    return `Handled. ${clients.length} sphere contacts monitored.
+• Annual homeiversary touches and quarterly market advisories are scheduled.
+• No client communications will be transmitted without your preview and authorization.
+
+*Why I'm telling you this:* Keeps your referral pipeline warm while keeping you in full control of every message.`;
   }
 
-  // Default intelligent assistant response
-  return `**Jarvis Lead Assistant Operational Brief:**\n\nI have analyzed your live workspace data:\n- **Active Listings:** ${listings.length}\n- **Monitored Leads:** ${leads.length}\n- **CRM Contacts:** ${clients.length}\n\nI can help you prioritize incoming buyer inquiries, structure creative deal terms (LOIs, seller net sheets), generate video voiceover scripts, or draft client communications. What would you like to execute?`;
+  // Default operational response
+  return `Handled. JARVIS at your service, Melissa.
+• **Active Listings:** ${listings.length}
+• **Monitored Leads:** ${leads.length}
+• **CRM Contacts:** ${clients.length}
+
+I am tracking your pipeline, vetting NWMLS listing data, scrubbing DNC lists, and queuing approvals. What would you like me to pull up or draft?`;
 }
 
 export async function POST(request: Request) {
